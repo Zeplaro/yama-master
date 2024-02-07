@@ -9,7 +9,7 @@ def exportData(data, path):
     :param data: any json valid data.
     :param path: full json file path.
     """
-    with open(path, 'w') as outfile:
+    with open(path, "w") as outfile:
         json.dump(data, outfile)
 
 

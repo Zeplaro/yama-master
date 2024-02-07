@@ -51,7 +51,7 @@ def decimalToAlphabetical(decimal):
     if decimal < 0:
         raise ValueError(f"Given decimal must be superior or equal to 0; got : {decimal}")
 
-    alphanum = ''
+    alphanum = ""
     decimal += 1  # because alphabet hase no 0 and starts with 'a'
     while decimal:
         decimal -= 1  # 'a' needs to be used as next 'decimal' unit when reaching 'z':  ..., 'y', 'z', 'aa', 'ab', ...
@@ -91,7 +91,7 @@ def alphabeticalToDecimal(alpha):
     index = -1
     for step, letter in reversed(list(enumerate(reversed(alpha)))):
         letter_index = ascii_lowercase.index(letter)
-        index += (letter_index+1)*(26**step)
+        index += (letter_index + 1) * (26**step)
     return index
 
 
@@ -105,14 +105,22 @@ def decimalToRoman(decimal):
     if not decimal > 0:
         raise ValueError(f"Given index must be superior to 0; got : {decimal}.")
 
-    roman = [(1000, 'M'), (900, 'CM'),
-             (500, 'D'), (400, 'CD'),
-             (100, 'C'), (90, 'XC'),
-             (50, 'L'), (40, 'XL'),
-             (10, 'X'), (9, 'IX'),
-             (5, 'V'), (4, 'IV'),
-             (1, 'I')]
-    roman_num = ''
+    roman = [
+        (1000, "M"),
+        (900, "CM"),
+        (500, "D"),
+        (400, "CD"),
+        (100, "C"),
+        (90, "XC"),
+        (50, "L"),
+        (40, "XL"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
+    ]
+    roman_num = ""
     while decimal:
         for value, num in roman:
             if decimal >= value:
@@ -131,17 +139,27 @@ def romanToDecimal(roman):
     is not valid; e.g. : 'CLVDXI' returns 666 but 666 is actually written 'DCLXVI'
     """
     if not isinstance(roman, str):
-        raise TypeError(f"Expected type -> str, and not empty; got {roman} -> {type(roman).__name__}.")
+        raise TypeError(
+            f"Expected type -> str, and not empty; got {roman} -> {type(roman).__name__}."
+        )
     if not roman:
         raise ValueError("Cannot convert given empty string to roman numeral.")
 
-    values = [('M', 1000), ('CM', 900),
-              ('D', 500), ('CD', 400),
-              ('C', 100), ('XC', 90),
-              ('L', 50), ('XL', 40),
-              ('X', 10), ('IX', 9),
-              ('V', 5), ('IV', 4),
-              ('I', 1)]
+    values = [
+        ("M", 1000),
+        ("CM", 900),
+        ("D", 500),
+        ("CD", 400),
+        ("C", 100),
+        ("XC", 90),
+        ("L", 50),
+        ("XL", 40),
+        ("X", 10),
+        ("IX", 9),
+        ("V", 5),
+        ("IV", 4),
+        ("I", 1),
+    ]
     roman = roman.upper()
     diff = set(roman) - set([x for x, _ in values])
     if diff:
@@ -152,7 +170,7 @@ def romanToDecimal(roman):
         for sign, value in values:
             if roman.startswith(sign):
                 result += value
-                roman = roman[len(sign):]
+                roman = roman[len(sign) :]
                 break
     return result
 

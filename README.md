@@ -27,3 +27,6 @@ Once I don't feel the need to support Python 2.7 anymore, here is a list of a co
 - [x] Replace `pass` with `...` when prettier.
 - [ ] Use new dictionnary updating method `|=`
 - [x] Make use of positional-only and keyword-only arguments when usefull.
+
+## Formated using Black
+Setting : `--line-length 100 --target-version py37 --target-version py39 --preview`

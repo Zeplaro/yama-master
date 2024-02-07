@@ -5,7 +5,7 @@ import maya.api.OpenMaya as om
 from . import nodes, xformutils, decorators, config, utils
 
 
-def createHook(node, parent=None, suffix='hook'):
+def createHook(node, parent=None, suffix="hook"):
     """
     Creates a transform that moves and behaves the same as the given node no mather its parenting.
     Usefull to separate parts of a rig that would otherwise be buried in the hierarchy.
@@ -17,9 +17,9 @@ def createHook(node, parent=None, suffix='hook'):
     node = nodes.yam(node)
     if not isinstance(node, nodes.Transform):
         raise ValueError("Given node is not a transform")
-    hook = nodes.createNode('transform', name=f'{node.shortName}_{suffix}')
-    mmx = nodes.createNode('multMatrix', n=f'mmx_{node.shortName}_{suffix}')
-    dmx = nodes.createNode('decomposeMatrix', n=f'dmx_{node.shortName}_{suffix}')
+    hook = nodes.createNode("transform", name=f"{node.shortName}_{suffix}")
+    mmx = nodes.createNode("multMatrix", n=f"mmx_{node.shortName}_{suffix}")
+    dmx = nodes.createNode("decomposeMatrix", n=f"dmx_{node.shortName}_{suffix}")
     node.worldMatrix[0].connectTo(mmx.matrixIn[1], f=True)
     hook.parentInverseMatrix[0].connectTo(mmx.matrixIn[2], f=True)
     mmx.matrixSum.connectTo(dmx.inputMatrix, f=True)
@@ -38,23 +38,23 @@ def hierarchize(objs, reverse=False):
 
 def mxConstraint(source=None, target=None):
     if not source or not target:
-        sel = nodes.selected(type='transform')
+        sel = nodes.selected(type="transform")
         if len(sel) != 2:
             raise RuntimeError(f"two 'transform' needed; {len(sel)} given")
         source, target = sel
     else:
         source, target = nodes.yams([source, target])
 
-    mmx = nodes.createNode('multMatrix', n=f'{source.shortName}_mmx')
-    dmx = nodes.createNode('decomposeMatrix', n=f'{source.shortName}_dmx')
-    cmx = nodes.createNode('composeMatrix', n=f'{source.shortName}_cmx')
+    mmx = nodes.createNode("multMatrix", n=f"{source.shortName}_mmx")
+    dmx = nodes.createNode("decomposeMatrix", n=f"{source.shortName}_dmx")
+    cmx = nodes.createNode("composeMatrix", n=f"{source.shortName}_cmx")
     cmx.outputMatrix.connectTo(mmx.matrixIn[0], f=True)
     source.worldMatrix.connectTo(mmx.matrixIn[1], f=True)
     target.parentInverseMatrix.connectTo(mmx.matrixIn[2], f=True)
     mmx.matrixSum.connectTo(dmx.inputMatrix, f=True)
 
-    source_tmp = nodes.createNode('transform', n=f'{source.shortName}_sourceTMP')
-    target_tmp = nodes.createNode('transform', n=f'{source.shortName}_targetTMP')
+    source_tmp = nodes.createNode("transform", n=f"{source.shortName}_sourceTMP")
+    target_tmp = nodes.createNode("transform", n=f"{source.shortName}_targetTMP")
     xformutils.match([source, source_tmp])
     xformutils.match([target, target_tmp])
     target_tmp.parent = source_tmp
@@ -84,24 +84,24 @@ def resetAttrs(objs=None, t=True, r=True, s=True, v=True, user=False, raiseError
     :param raiseErrors: If True, raises the encountered errors; skips them if False
     """
     if not objs:
-        objs = nodes.selected(type='transform')
+        objs = nodes.selected(type="transform")
         if not objs:
             raise RuntimeError("No object given or transform selected")
     objs = nodes.yams(objs)
 
-    tr = ''
+    tr = ""
     if t:
-        tr += 't'
+        tr += "t"
     if r:
-        tr += 'r'
+        tr += "r"
     for obj in objs:
-        for axe in 'xyz':
+        for axe in "xyz":
             for tr_ in tr:
                 attr = obj.attr(tr_ + axe)
                 if attr.isSettable():
                     attr.value = 0
             if s:
-                attr = obj.attr('s' + axe)
+                attr = obj.attr("s" + axe)
                 if attr.isSettable():
                     attr.value = 1
         if v:
@@ -121,11 +121,11 @@ def resetAttrs(objs=None, t=True, r=True, s=True, v=True, user=False, raiseError
                     cmds.warning(f"Failed to set defaultValue on {attr} : {e}")
 
 
-def insertGroup(obj, suffix='GRP'):
+def insertGroup(obj, suffix="GRP"):
     if not obj:
         raise ValueError("No obj given; Use 'insertGroups' to work on selection")
     obj = nodes.yam(obj)
-    grp = nodes.createNode('transform', name=f'{obj.shortName}_{suffix}')
+    grp = nodes.createNode("transform", name=f"{obj.shortName}_{suffix}")
     world_matrix = obj.getXform(m=True, ws=True)
     parent = obj.parent
     if parent:
@@ -135,9 +135,9 @@ def insertGroup(obj, suffix='GRP'):
     return grp
 
 
-def insertGroups(objs=None, suffix='GRP'):
+def insertGroups(objs=None, suffix="GRP"):
     if not objs:
-        objs = nodes.selected(type='transform')
+        objs = nodes.selected(type="transform")
         if not objs:
             raise RuntimeError("No object given and no 'transform' selected")
     objs = nodes.yams(objs)
@@ -158,7 +158,7 @@ def wrapMesh(objs=None, ws=True):
     :param ws: (bool) If True, the matching is done in world space. Otherwise, the matching is done in object space.
     """
     if not objs:
-        objs = nodes.selected(type=['transform', 'mesh'])
+        objs = nodes.selected(type=["transform", "mesh"])
         if not objs:
             raise RuntimeError("No object given and no 'transform' or 'mesh' selected")
         if len(objs) < 2:
@@ -212,7 +212,7 @@ def getSymmetryTable(obj=None):
         return cmds.ls(os=True, fl=True)
 
     def index(vtx):
-        return int(vtx.split('[')[-1][:-1])
+        return int(vtx.split("[")[-1][:-1])
 
     if not obj:
         obj = selected()
@@ -277,7 +277,7 @@ class SymTable(dict):
 def sortOutliner(objs=None, key=str):
     if not objs:
         objs = nodes.selected()
-    grp = nodes.createNode('transform', name='grp_TEMP', ss=True)
+    grp = nodes.createNode("transform", name="grp_TEMP", ss=True)
     for i in sorted(objs, key=key):
         parent = i.parent
         grp.setXform(m=i.getXform(m=True, ws=True), ws=True)
@@ -287,19 +287,23 @@ def sortOutliner(objs=None, key=str):
 
 
 def getActiveCamera():
-    return nodes.yam(cmds.modelEditor(cmds.getPanel(withFocus=True), q=True, activeView=True, camera=True)).shape
+    return nodes.yam(
+        cmds.modelEditor(cmds.getPanel(withFocus=True), q=True, activeView=True, camera=True)
+    ).shape
 
 
-def unlockTRSV(objs=None, unlock=True, breakConnections=True, keyable=True, t=True, r=True, s=True, v=True):
+def unlockTRSV(
+    objs=None, unlock=True, breakConnections=True, keyable=True, t=True, r=True, s=True, v=True
+):
     if not objs:
         objs = nodes.selected()
     else:
         objs = nodes.yams(objs)
 
-    trs = ''
-    trs += 't' if t else ''
-    trs += 'r' if r else ''
-    trs += 's' if s else ''
+    trs = ""
+    trs += "t" if t else ""
+    trs += "r" if r else ""
+    trs += "s" if s else ""
 
     for obj in objs:
         for attr in trs:
@@ -309,7 +313,7 @@ def unlockTRSV(objs=None, unlock=True, breakConnections=True, keyable=True, t=Tr
                 obj.attr(attr).keyable = True
             if breakConnections:
                 obj.attr(attr).breakConnections()
-            for xyz in 'xyz':
+            for xyz in "xyz":
                 if unlock:
                     obj.attr(attr + xyz).locked = False
                 if keyable:
@@ -325,7 +329,7 @@ def unlockTRSV(objs=None, unlock=True, breakConnections=True, keyable=True, t=Tr
                 obj.v.breakConnections()
 
 
-def createPolyNgon(name='pNgon1', radius=0.1, sides=3, upAxis='y', parent=None):
+def createPolyNgon(name="pNgon1", radius=0.1, sides=3, upAxis="y", parent=None):
     """
     Creates a single face regular polygon with given number of sides.
 
@@ -338,11 +342,15 @@ def createPolyNgon(name='pNgon1', radius=0.1, sides=3, upAxis='y', parent=None):
     @return: Mesh polygon shape node.
     """
     if sides < 3:
-        raise ValueError(f"A polygon can not have less than 3 sides; numbr of sides given : {sides}")
+        raise ValueError(
+            f"A polygon can not have less than 3 sides; numbr of sides given : {sides}"
+        )
 
     if config.undoable:
-        ngon = cmds.polyCone(radius=radius, subdivisionsX=sides, height=0, constructionHistory=False, name=name)[0]
-        cmds.delete(f'{ngon}.f[1:{sides}]')
+        ngon = cmds.polyCone(
+            radius=radius, subdivisionsX=sides, height=0, constructionHistory=False, name=name
+        )[0]
+        cmds.delete(f"{ngon}.f[1:{sides}]")
         cmds.polyNormal(ngon, normalMode=0, constructionHistory=False)
         ngon = nodes.yam(ngon).shape
         if parent:
@@ -352,7 +360,7 @@ def createPolyNgon(name='pNgon1', radius=0.1, sides=3, upAxis='y', parent=None):
     else:
         mfn = om.MFnMesh()
         coordinates = utils.getRegularPolygonCoordinates(sides, radius)
-        coordinates.insert('xyz'.index(upAxis), 0)
+        coordinates.insert("xyz".index(upAxis), 0)
         u, v = zip(*coordinates)
         points = [om.MPoint(coordinate) for coordinate in coordinates]
         create_args = [points, [sides], list(range(sides)), u, v]
@@ -375,9 +383,9 @@ def componentListToIndices(components):
     """
     indices = []
     for pack in components:
-        pack = pack.split('[')[-1][:-1]
-        if ':' in pack:
-            start, stop = pack.split(':')
+        pack = pack.split("[")[-1][:-1]
+        if ":" in pack:
+            start, stop = pack.split(":")
             start, stop = int(start), int(stop)
             indices += list(range(start, stop + 1))
         else:

@@ -20,12 +20,12 @@ def getComponent(node, attr):
     :param attr: str, The component name to get the component from.
     :return: The component object.
     """
-    if '.' in attr:
+    if "." in attr:
         raise TypeError(f"Not a supported component : '{attr}'")
 
     split = []
-    if '[' in attr:  # Checking if getting a specific index
-        split = attr.split('[')
+    if "[" in attr:  # Checking if getting a specific index
+        split = attr.split("[")
         attr = split.pop(0)
 
     if attr not in SupportedTypes.TYPES:
@@ -37,7 +37,7 @@ def getComponent(node, attr):
         if not node:
             raise RuntimeError(f"node '{node}' has no shape to get component on")
 
-    if attr == 'cp':
+    if attr == "cp":
         if node.__class__ in SupportedTypes.SHAPE_COMPONENT:
             attr = SupportedTypes.SHAPE_COMPONENT[node.__class__]
 
@@ -46,7 +46,7 @@ def getComponent(node, attr):
         api_type = SupportedTypes.COMPONENT_SHAPE_MFNID[(attr, node.__class__)]
     else:
         om_list = om.MSelectionList()
-        om_list.add(f'{node.name}.{attr}[0]')
+        om_list.add(f"{node.name}.{attr}[0]")
         dag, comp = om_list.getComponent(0)
         api_type = comp.apiType()
 
@@ -58,11 +58,11 @@ def getComponent(node, attr):
     indices = []
     for index in split:
         index = index[:-1]  # Removing the closing ']'
-        if index in ['*', ':']:  # if using the maya wildcard symbols
+        if index in ["*", ":"]:  # if using the maya wildcard symbols
             indices.append(slice(None))
-        elif ':' in index:  # if using a slice to list multiple components
-            slice_args = [int(x) if x else None for x in
-                          index.split(':')]  # parsing the string into a proper slice
+        elif ":" in index:  # if using a slice to list multiple components
+            # parsing the string into a proper slice
+            slice_args = [int(x) if x else None for x in index.split(":")]
             indices.append(slice(*slice_args))
         else:
             indices.append(int(index))
@@ -75,19 +75,22 @@ class Components(nodes.Yam):
     """
     Base class for components not indexed.
     """
+
     __metaclass__ = ABCMeta
 
     def __init__(self, node, apiType):
         super().__init__()
         if not isinstance(node, nodes.ControlPoint):
-            raise TypeError(f"Expected component node of type ControlPoint, instead got : {node}, {type(node).__name__}")
+            raise TypeError(
+                f"Expected component node of type ControlPoint, instead got : {node}, {type(node).__name__}"
+            )
         self.node = node
         self.api_type = apiType
         self.component_name = SupportedTypes.MFNID_COMPONENT_CLASS[apiType][0]
         self.component_class = SupportedTypes.MFNID_COMPONENT_CLASS[apiType][2]
 
     def __getitem__(self, item):
-        if item == '*':
+        if item == "*":
             item = slice(None)
         if isinstance(item, slice):
             return ComponentsSlice(self.node, self, item)
@@ -117,7 +120,7 @@ class Components(nodes.Yam):
 
     @property
     def name(self):
-        return f'{self.node}.{self.component_name}[:]'
+        return f"{self.node}.{self.component_name}[:]"
 
     def index(self, index, secondIndex=None, thirdIndex=None):
         return self.component_class(self.node, self, index, secondIndex, thirdIndex)
@@ -133,13 +136,14 @@ class Components(nodes.Yam):
         return self.api_type
 
     def inheritedTypes(self):
-        return ['component', self.api_type]
+        return ["component", self.api_type]
 
 
 class SingleIndexed(Components):
     """
     Base class for components indexed by a single index.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -152,6 +156,7 @@ class MeshVertices(SingleIndexed):
     """
     Class for mesh vertices.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -180,6 +185,7 @@ class CurveCVs(SingleIndexed):
     """
     Class for curve cvs.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -210,6 +216,7 @@ class DoubleIndexed(Components):
     """
     Base class for components indexed by two indices.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -223,6 +230,7 @@ class TripleIndexed(Components):
     """
     Base class for components indexed by three indices.
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -238,6 +246,7 @@ class Component(nodes.Yam):
     """
     Base class for indexed component.
     """
+
     def __init__(self, node, components, index, secondIndex=None, thirdIndex=None):
         super().__init__()
         if isinstance(node, nodes.Transform):
@@ -259,11 +268,15 @@ class Component(nodes.Yam):
 
     def __repr__(self):
         if self.third_index is not None:
-            return (f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}', {self.index}, "
-                    f"{self.second_index}, {self.third_index})")
+            return (
+                f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}', {self.index}, "
+                f"{self.second_index}, {self.third_index})"
+            )
         elif self.second_index is not None:
-            return (f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}', {self.index}, "
-                    f"{self.second_index})")
+            return (
+                f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}', {self.index}, "
+                f"{self.second_index})"
+            )
         else:
             return f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}', {self.index})"
 
@@ -281,9 +294,13 @@ class Component(nodes.Yam):
 
         elif self.third_index is None:
             if isinstance(self.components, TripleIndexed):
-                return self.__class__(self.node, self.components, self.index, self.second_index, item)
+                return self.__class__(
+                    self.node, self.components, self.index, self.second_index, item
+                )
             else:
-                raise IndexError(f"'{self}' is a double index component and cannot get a third index")
+                raise IndexError(
+                    f"'{self}' is a double index component and cannot get a third index"
+                )
         raise IndexError(f"'{self}' cannot get four index")
 
     def __eq__(self, other):
@@ -297,15 +314,15 @@ class Component(nodes.Yam):
 
     @property
     def name(self):
-        return f'{self.node}.{self.attribute}'
+        return f"{self.node}.{self.attribute}"
 
     @property
     def attribute(self):
-        attribute = f'{self.components.component_name}[{self.index}]'
+        attribute = f"{self.components.component_name}[{self.index}]"
         if self.second_index is not None:
-            attribute += f'[{self.second_index}]'
+            attribute += f"[{self.second_index}]"
         if self.third_index is not None:
-            attribute += f'[{self.third_index}]'
+            attribute += f"[{self.third_index}]"
         return attribute
 
     def indices(self):
@@ -321,7 +338,7 @@ class Component(nodes.Yam):
         return self.components.api_type
 
     def inheritedTypes(self):
-        return ['component', self.components.api_type]
+        return ["component", self.components.api_type]
 
 
 class MeshVertex(Component):
@@ -383,6 +400,7 @@ class ComponentsSlice(nodes.Yam):
     A slice object to work with maya slices.
     Warning : ComponentsSlice does contain the last index of the slice unlike in a Python slice.
     """
+
     def __init__(self, node, components, components_slice):
         super().__init__()
         self.node = node
@@ -400,7 +418,7 @@ class ComponentsSlice(nodes.Yam):
         else:
             if self._slice.stop < 0:
                 # If using negative number for stop, then using python behavior of stopping at len(components)-stop
-                stop = len(self.components) + self._slice.stop-1
+                stop = len(self.components) + self._slice.stop - 1
             else:
                 # Unlike Python, Maya slices includes the stop index, e.g.: mesh.vtx[2:12] <-- includes vertex #12
                 stop = self._slice.stop + 1
@@ -449,9 +467,11 @@ class ComponentsSlice(nodes.Yam):
     @property
     def name(self):
         if self.step != 1:
-            raise RuntimeError("ComponentSlice that including a step different than 1 can not be represented by a "
-                               "single Maya valid name. Use .names instead")
-        return '{}.{}[{}:{}]'.format(self.node, self.components.component_name, self.start, self.stop)
+            raise RuntimeError(
+                "ComponentSlice that including a step different than 1 can not be represented by a "
+                "single Maya valid name. Use .names instead"
+            )
+        return f"{self.node}.{self.components.component_name}[{self.start}:{self.stop}]"
 
     @property
     def names(self):
@@ -465,7 +485,7 @@ class ComponentsSlice(nodes.Yam):
         return self.components.api_type
 
     def inheritedTypes(self):
-        return ['component', self.components.api_type]
+        return ["component", self.components.api_type]
 
     def getPositions(self, ws=False):
         return [x.getPosition(ws=ws) for x in self]
@@ -485,43 +505,57 @@ class SupportedTypes:
     """
     Contains all the supported component types and their corresponding class, MFn id, yam class, etc...
     """
+
     # Removed 'v' because rarely used and similar to short name for 'visibility'
-    TYPES = {'cv', 'e', 'ep', 'f', 'map', 'pt', 'sf', 'u', '#v', 'vtx', 'vtxFace', 'cp', }
+    TYPES = {
+        "cv",
+        "e",
+        "ep",
+        "f",
+        "map",
+        "pt",
+        "sf",
+        "u",
+        "#v",
+        "vtx",
+        "vtxFace",
+        "cp",
+    }
 
     MFNID_COMPONENT_CLASS = {
-        om.MFn.kCurveCVComponent: ('cv', CurveCVs, CurveCV),  # 533
-        om.MFn.kCurveEPComponent: ('ep', SingleIndexed, Component),  # 534
-        om.MFn.kCurveParamComponent: ('u', SingleIndexed, Component),  # 536
-        om.MFn.kIsoparmComponent: ('v', DoubleIndexed, Component),  # 537
-        om.MFn.kSurfaceCVComponent: ('cv', DoubleIndexed, Component),  # 539
-        om.MFn.kLatticeComponent: ('pt', TripleIndexed, Component),  # 543
-        om.MFn.kMeshEdgeComponent: ('e', SingleIndexed, Component),  # 548
-        om.MFn.kMeshPolygonComponent: ('f', SingleIndexed, Component),  # 549
-        om.MFn.kMeshVertComponent: ('vtx', MeshVertices, MeshVertex),  # 551
-        om.MFn.kCharacterMappingData: ('vtxFace', SingleIndexed, Component),  # 741
-        om.MFn.kSurfaceFaceComponent: ('sf', DoubleIndexed, Component),  # 774
-        om.MFn.kMeshMapComponent: ('map', SingleIndexed, Component),  # 813
+        om.MFn.kCurveCVComponent: ("cv", CurveCVs, CurveCV),  # 533
+        om.MFn.kCurveEPComponent: ("ep", SingleIndexed, Component),  # 534
+        om.MFn.kCurveParamComponent: ("u", SingleIndexed, Component),  # 536
+        om.MFn.kIsoparmComponent: ("v", DoubleIndexed, Component),  # 537
+        om.MFn.kSurfaceCVComponent: ("cv", DoubleIndexed, Component),  # 539
+        om.MFn.kLatticeComponent: ("pt", TripleIndexed, Component),  # 543
+        om.MFn.kMeshEdgeComponent: ("e", SingleIndexed, Component),  # 548
+        om.MFn.kMeshPolygonComponent: ("f", SingleIndexed, Component),  # 549
+        om.MFn.kMeshVertComponent: ("vtx", MeshVertices, MeshVertex),  # 551
+        om.MFn.kCharacterMappingData: ("vtxFace", SingleIndexed, Component),  # 741
+        om.MFn.kSurfaceFaceComponent: ("sf", DoubleIndexed, Component),  # 774
+        om.MFn.kMeshMapComponent: ("map", SingleIndexed, Component),  # 813
     }
 
     COMPONENT_SHAPE_MFNID = {
-        ('cv', nodes.NurbsCurve): om.MFn.kCurveCVComponent,
-        ('cv', nodes.NurbsSurface): om.MFn.kSurfaceCVComponent,
-        ('e', nodes.Mesh): om.MFn.kMeshEdgeComponent,
-        ('ep', nodes.NurbsCurve): om.MFn.kCurveEPComponent,
-        ('f', nodes.Mesh): om.MFn.kMeshPolygonComponent,
-        ('map', nodes.Mesh): om.MFn.kMeshMapComponent,
-        ('pt', nodes.Lattice): om.MFn.kLatticeComponent,
-        ('sf', nodes.NurbsSurface): om.MFn.kSurfaceFaceComponent,
-        ('u', nodes.NurbsCurve): om.MFn.kCurveParamComponent,
-        ('u', nodes.NurbsSurface): om.MFn.kIsoparmComponent,
-        ('v', nodes.NurbsSurface): om.MFn.kIsoparmComponent,
-        ('vtx', nodes.Mesh): om.MFn.kMeshVertComponent,
-        ('vtxFace', nodes.Mesh): om.MFn.kCharacterMappingData,
+        ("cv", nodes.NurbsCurve): om.MFn.kCurveCVComponent,
+        ("cv", nodes.NurbsSurface): om.MFn.kSurfaceCVComponent,
+        ("e", nodes.Mesh): om.MFn.kMeshEdgeComponent,
+        ("ep", nodes.NurbsCurve): om.MFn.kCurveEPComponent,
+        ("f", nodes.Mesh): om.MFn.kMeshPolygonComponent,
+        ("map", nodes.Mesh): om.MFn.kMeshMapComponent,
+        ("pt", nodes.Lattice): om.MFn.kLatticeComponent,
+        ("sf", nodes.NurbsSurface): om.MFn.kSurfaceFaceComponent,
+        ("u", nodes.NurbsCurve): om.MFn.kCurveParamComponent,
+        ("u", nodes.NurbsSurface): om.MFn.kIsoparmComponent,
+        ("v", nodes.NurbsSurface): om.MFn.kIsoparmComponent,
+        ("vtx", nodes.Mesh): om.MFn.kMeshVertComponent,
+        ("vtxFace", nodes.Mesh): om.MFn.kCharacterMappingData,
     }
 
     SHAPE_COMPONENT = {
-        nodes.Mesh: 'vtx',
-        nodes.NurbsCurve: 'cv',
-        nodes.NurbsSurface: 'cv',
-        nodes.Lattice: 'pt',
+        nodes.Mesh: "vtx",
+        nodes.NurbsCurve: "cv",
+        nodes.NurbsSurface: "cv",
+        nodes.Lattice: "pt",
     }

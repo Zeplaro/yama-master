@@ -25,21 +25,38 @@ class WeightList(list):
         return super().__getitem__(item)
 
     @classmethod
-    def fromLengthValue(cls, length, value=0.0, force_clamp=True, min_value=0.0, max_value=1.0, round_value=None):
+    def fromLengthValue(
+        cls, length, value=0.0, force_clamp=True, min_value=0.0, max_value=1.0, round_value=None
+    ):
         if not isinstance(length, int):
-            raise TypeError("length must be int; got : {}, {}".format(length, type(length).__name__))
+            raise TypeError(
+                "length must be int; got : {}, {}".format(length, type(length).__name__)
+            )
         try:
             value = float(value)
         except ValueError:
-            raise ValueError("value must be float or string float; got : {}, {}".format(value, type(value).__name__))
-        return cls((value for _ in range(length)), force_clamp=force_clamp, min_value=min_value, max_value=max_value,
-                   round_value=round_value)
+            raise ValueError(
+                "value must be float or string float; got : {}, {}".format(
+                    value, type(value).__name__
+                )
+            )
+        return cls(
+            (value for _ in range(length)),
+            force_clamp=force_clamp,
+            min_value=min_value,
+            max_value=max_value,
+            round_value=round_value,
+        )
 
     def _cleanValue(self, value):
         try:
             value = float(value)
         except ValueError:
-            raise ValueError("Value must be float or string float; got : {}, {}".format(value, type(value).__name__))
+            raise ValueError(
+                "Value must be float or string float; got : {}, {}".format(
+                    value, type(value).__name__
+                )
+            )
 
         if self.force_clamp:
             value = max(min(value, self.max_value), self.min_value)
@@ -167,8 +184,13 @@ class WeightList(list):
         return data
 
     def emptyCopy(self, data=None):
-        return type(self)(data, force_clamp=self.force_clamp, min_value=self.min_value, max_value=self.max_value,
-                          round_value=self.round_value)
+        return type(self)(
+            data,
+            force_clamp=self.force_clamp,
+            min_value=self.min_value,
+            max_value=self.max_value,
+            round_value=self.round_value,
+        )
 
     def copy(self):
         return self.emptyCopy(self)
@@ -194,17 +216,31 @@ def normalizeWeights(weights, force_clamp=True, min_value=0.0, max_value=1.0, ro
         - If 'round_value' is specified, the normalized values will be rounded to the specified decimal places.
     """
     # Checking that all given weights are WeightList
-    weights = [WeightList(weight, force_clamp=force_clamp, min_value=min_value, max_value=max_value,
-                          round_value=round_value)
-               if not isinstance(weight, WeightList) else weight for weight in weights]
+    weights = [
+        (
+            WeightList(
+                weight,
+                force_clamp=force_clamp,
+                min_value=min_value,
+                max_value=max_value,
+                round_value=round_value,
+            )
+            if not isinstance(weight, WeightList)
+            else weight
+        )
+        for weight in weights
+    ]
     new_weights = [weight.emptyCopy() for weight in weights]
     for values in zip(*weights):
         mult = 1.0
-        if any(values):  # Keeps everything to 0.0 if all values are at 0.0 and prevents a / by 0 error
+        # Keeps everything to 0.0 if all values are at 0.0 and prevents a / by 0 error
+        if any(values):
             try:
                 mult = 1.0 / sum(values)
             except ZeroDivisionError as e:
-                raise ZeroDivisionError(f"The sum of values was equal to 0.0; Values : {values}; {e}")
+                raise ZeroDivisionError(
+                    f"The sum of values was equal to 0.0; Values : {values}; {e}"
+                )
         for i, value in enumerate(values):
             new_weights[i].append(value * mult)
     return new_weights
@@ -215,7 +251,9 @@ def clampWeights(weights, min_value=0.0, max_value=1.0):
         round_value = weights.round_value
     else:
         round_value = None
-    return WeightList(weights, force_clamp=True, min_value=min_value, max_value=max_value, round_value=round_value)
+    return WeightList(
+        weights, force_clamp=True, min_value=min_value, max_value=max_value, round_value=round_value
+    )
 
 
 def roundWeights(weights, round_value=3):
@@ -225,5 +263,10 @@ def roundWeights(weights, round_value=3):
         max_value = weights.max_value
     else:
         force_clamp, min_value, max_value = True, 0.0, 1.0
-    return WeightList(weights, force_clamp=force_clamp, min_value=min_value, max_value=max_value,
-                      round_value=round_value)
+    return WeightList(
+        weights,
+        force_clamp=force_clamp,
+        min_value=min_value,
+        max_value=max_value,
+        round_value=round_value,
+    )

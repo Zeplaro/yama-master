@@ -10,7 +10,7 @@ def getSkinCluster(obj, firstOnly=True):
     # type: (nodes.Yam, bool) -> nodes.SkinCluster | nodes.YamList[nodes.SkinCluster] | None
     """TODO: which way is better : listHistory or ls ?"""
     skinClusters = cmds.listHistory(str(obj), pdo=True)
-    skinClusters = cmds.ls(skinClusters, type='skinCluster')
+    skinClusters = cmds.ls(skinClusters, type="skinCluster")
     if firstOnly:
         return nodes.yam(skinClusters[0]) if skinClusters else None
     return nodes.yams(skinClusters) if skinClusters else nodes.YamList()
@@ -20,7 +20,14 @@ def getSkinClusters(objs, firstOnly=True):
     return nodes.YamList([getSkinCluster(obj, firstOnly=firstOnly) for obj in objs])
 
 
-def skinAs(objs=None, sourceNamespace=None, targetNamespace=None, useObjectNamespace=False, createMissing=True, prompt=True):
+def skinAs(
+    objs=None,
+    sourceNamespace=None,
+    targetNamespace=None,
+    useObjectNamespace=False,
+    createMissing=True,
+    prompt=True,
+):
     # type: ([str | nodes.Transform | nodes.Shape], str, str, bool, bool, bool) -> nodes.YamList[nodes.SkinCluster] | None
     """
     Copies the skinning and skinCLuster settings of one skinned object to any other objects with a different topology.
@@ -44,16 +51,18 @@ def skinAs(objs=None, sourceNamespace=None, targetNamespace=None, useObjectNames
     from . import mayautils as mut
 
     if isinstance(objs, str):
-        raise RuntimeError(f"first arg objs='{objs}' is of type {type(objs).__name__} instead of expected type: list")
+        raise RuntimeError(
+            f"first arg objs='{objs}' is of type {type(objs).__name__} instead of expected type: list"
+        )
     if not objs:
         objs = nodes.ls(sl=True, tr=True, fl=True)
 
         def getSkinnable(objs_):
             skinnable = []
             for obj in objs_:
-                if obj.shapes(type='controlPoint') and not obj.shapes(type='nurbsSurface'):
+                if obj.shapes(type="controlPoint") and not obj.shapes(type="nurbsSurface"):
                     skinnable.append(obj)
-                skinnable.extend(getSkinnable(obj.children(type='transform')))
+                skinnable.extend(getSkinnable(obj.children(type="transform")))
             return skinnable
 
         objs = [objs[0]] + getSkinnable(objs[1:])
@@ -67,20 +76,26 @@ def skinAs(objs=None, sourceNamespace=None, targetNamespace=None, useObjectNames
         # Checking for already attached skin on target
         if getSkinCluster(target):
             if config.verbose:
-                cmds.warning(f'{target} already has a skinCluster attached')
+                cmds.warning(f"{target} already has a skinCluster attached")
             continue
         else:
             free_targets.append(target)
 
         # Checking for intermediate shapes on target
-        intermediate_shapes = [shape for shape in target.shapes(noIntermediate=False) if shape.intermediateObject.value]
+        intermediate_shapes = [
+            shape for shape in target.shapes(noIntermediate=False) if shape.intermediateObject.value
+        ]
         if intermediate_shapes and prompt:
-            result = cmds.confirmDialog(title="Confirm",
-                                        message=f"These targets already have intermediate shapes on them : "
-                                                f"{intermediate_shapes}\n"
-                                                f"Do you want to continue ?",
-                                        button=["Yes", "Cancel", "Delete them"], defaultButton="Yes",
-                                        cancelButton="Cancel", dismissString="Cancel")
+            result = cmds.confirmDialog(
+                title="Confirm",
+                message=f"These targets already have intermediate shapes on them : "
+                f"{intermediate_shapes}\n"
+                f"Do you want to continue ?",
+                button=["Yes", "Cancel", "Delete them"],
+                defaultButton="Yes",
+                cancelButton="Cancel",
+                dismissString="Cancel",
+            )
             if result == "Cancel":
                 cmds.warning("SkinAs operation cancelled")
                 return
@@ -90,58 +105,71 @@ def skinAs(objs=None, sourceNamespace=None, targetNamespace=None, useObjectNames
 
     source_skn = getSkinCluster(source)
     if not source_skn:
-        raise ValueError('First object as no skinCluster attached')
+        raise ValueError("First object as no skinCluster attached")
     source_influences = source_skn.influences()
     target_influences = source_influences
 
     if useObjectNamespace:
-        sourceNamespace = ':'.join(source.name.split(':')[:-1])
+        sourceNamespace = ":".join(source.name.split(":")[:-1])
         if not sourceNamespace and config.verbose:
             cmds.warning("useObjectNamespace is True but no namespace was found on source object")
     elif sourceNamespace or targetNamespace:
         if sourceNamespace:
-            replace_args = [sourceNamespace + ':', '']
+            replace_args = [sourceNamespace + ":", ""]
             if targetNamespace:
-                replace_args[1] = targetNamespace + ':'
-            target_influences = nodes.yams(inf.name.replace(*replace_args) for inf in source_influences)
+                replace_args[1] = targetNamespace + ":"
+            target_influences = nodes.yams(
+                inf.name.replace(*replace_args) for inf in source_influences
+            )
         else:
-            target_influences = nodes.yams(targetNamespace + ':' + inf for inf in source_influences)
+            target_influences = nodes.yams(targetNamespace + ":" + inf for inf in source_influences)
 
     skinClusters = nodes.YamList()
-    kwargs = {'skinMethod': source_skn.skinningMethod.value,
-              'maximumInfluences': source_skn.maxInfluences.value,
-              'normalizeWeights': source_skn.normalizeWeights.value,
-              'obeyMaxInfluences': source_skn.maintainMaxInfluences.value,
-              'weightDistribution': source_skn.weightDistribution.value,
-              'includeHiddenSelections': True,
-              'toSelectedBones': True,
-              }
+    kwargs = {
+        "skinMethod": source_skn.skinningMethod.value,
+        "maximumInfluences": source_skn.maxInfluences.value,
+        "normalizeWeights": source_skn.normalizeWeights.value,
+        "obeyMaxInfluences": source_skn.maintainMaxInfluences.value,
+        "weightDistribution": source_skn.weightDistribution.value,
+        "includeHiddenSelections": True,
+        "toSelectedBones": True,
+    }
     for target in free_targets:
         if useObjectNamespace:  # getting target influences namespace per target
-            targetNamespace = ':'.join(target.name.split(':')[:-1])
+            targetNamespace = ":".join(target.name.split(":")[:-1])
             if sourceNamespace:
-                replace_args = [sourceNamespace + ':', '']
+                replace_args = [sourceNamespace + ":", ""]
                 if targetNamespace:
-                    replace_args[1] = targetNamespace + ':'
+                    replace_args[1] = targetNamespace + ":"
                 target_influences = []
                 for inf in source_influences:
                     target_name = inf.name.replace(*replace_args)
                     if not checks.objExists(target_name) and createMissing:
-                        target_inf = nodes.createNode('joint', name=target_name)
+                        target_inf = nodes.createNode("joint", name=target_name)
                     else:
                         target_inf = nodes.yam(target_name)
                     target_influences.append(target_inf)
             elif targetNamespace:
-                target_influences = nodes.yams(targetNamespace + ':' + inf for inf in source_influences)
+                target_influences = nodes.yams(
+                    targetNamespace + ":" + inf for inf in source_influences
+                )
             else:
                 target_influences = source_influences
 
         nodes.select(target_influences, target)
-        target_skinCluster = nodes.yam(cmds.skinCluster(name=f'{target.shortName}_SKN', **kwargs)[0])
-        cmds.copySkinWeights(ss=source_skn.name, ds=target_skinCluster.name, nm=True, sa='closestPoint', smooth=True,
-                             ia=('oneToOne', 'label', 'closestJoint'))
+        target_skinCluster = nodes.yam(
+            cmds.skinCluster(name=f"{target.shortName}_SKN", **kwargs)[0]
+        )
+        cmds.copySkinWeights(
+            ss=source_skn.name,
+            ds=target_skinCluster.name,
+            nm=True,
+            sa="closestPoint",
+            smooth=True,
+            ia=("oneToOne", "label", "closestJoint"),
+        )
         if config.verbose:
-            print(target + ' skinned -> ' + target_skinCluster.name)
+            print(target + " skinned -> " + target_skinCluster.name)
         skinClusters.append(target_skinCluster)
     return skinClusters
 
@@ -197,40 +225,70 @@ def copyDeformerWeights(source, target, sourceGeo=None, destinationGeo=None):
     else:
         destinationGeo = nodes.yam(destinationGeo)
 
-    if not hasattr(source, 'weights'):
-        raise TypeError(f"'{source}' of type '{type(source).__name__}' has no 'weights' attributes.")
-    if not hasattr(target, 'weights'):
-        raise TypeError(f"'{target}' of type '{type(target).__name__}' has no 'weights' attributes.")
+    if not hasattr(source, "weights"):
+        raise TypeError(
+            f"'{source}' of type '{type(source).__name__}' has no 'weights' attributes."
+        )
+    if not hasattr(target, "weights"):
+        raise TypeError(
+            f"'{target}' of type '{type(target).__name__}' has no 'weights' attributes."
+        )
 
     # Creating temp geos
     temp_source_geo, temp_dest_geo = nodes.yams(cmds.duplicate(sourceGeo.name, destinationGeo.name))
-    temp_source_geo.name = 'temp_source_geo'
-    temp_dest_geo.name = 'temp_dest_geo'
+    temp_source_geo.name = "temp_source_geo"
+    temp_dest_geo.name = "temp_dest_geo"
     # Removing shapeOrig
-    cmds.delete([x.name for x in temp_source_geo.shapes(noIntermediate=False) if x.intermediateObject.value])
-    cmds.delete([x.name for x in temp_dest_geo.shapes(noIntermediate=False) if x.intermediateObject.value])
+    cmds.delete(
+        [x.name for x in temp_source_geo.shapes(noIntermediate=False) if x.intermediateObject.value]
+    )
+    cmds.delete(
+        [x.name for x in temp_dest_geo.shapes(noIntermediate=False) if x.intermediateObject.value]
+    )
 
     # Creating temp skinClusters to copy weights
-    source_jnt = nodes.createNode('joint', name='temp_source_jnt')
+    source_jnt = nodes.createNode("joint", name="temp_source_jnt")
     nodes.select(source_jnt, temp_source_geo)
-    source_skn = nodes.yam(cmds.skinCluster(name='temp_source_skn', skinMethod=0, normalizeWeights=0,
-                                            obeyMaxInfluences=False, weightDistribution=0, includeHiddenSelections=True,
-                                            toSelectedBones=True)[0])
+    source_skn = nodes.yam(
+        cmds.skinCluster(
+            name="temp_source_skn",
+            skinMethod=0,
+            normalizeWeights=0,
+            obeyMaxInfluences=False,
+            weightDistribution=0,
+            includeHiddenSelections=True,
+            toSelectedBones=True,
+        )[0]
+    )
     source_skn.envelope.value = 0
 
-    destination_jnt = nodes.createNode('joint', name='temp_destination_jnt')
+    destination_jnt = nodes.createNode("joint", name="temp_destination_jnt")
     nodes.select(destination_jnt, temp_dest_geo)
-    destination_skn = nodes.yam(cmds.skinCluster(name='temp_dest_skn', skinMethod=0, normalizeWeights=0,
-                                                 obeyMaxInfluences=False, weightDistribution=0,
-                                                 includeHiddenSelections=True, toSelectedBones=True)[0])
+    destination_skn = nodes.yam(
+        cmds.skinCluster(
+            name="temp_dest_skn",
+            skinMethod=0,
+            normalizeWeights=0,
+            obeyMaxInfluences=False,
+            weightDistribution=0,
+            includeHiddenSelections=True,
+            toSelectedBones=True,
+        )[0]
+    )
     destination_skn.envelope.value = 0
 
     source_weights = source.weights
     source_skn.weights = [[value] for value in source_weights]
 
-    cmds.copySkinWeights(sourceSkin=source_skn.name, destinationSkin=destination_skn.name, noMirror=True,
-                         surfaceAssociation='closestPoint', influenceAssociation=('oneToOne', 'label', 'closestJoint'),
-                         smooth=True, normalize=False)
+    cmds.copySkinWeights(
+        sourceSkin=source_skn.name,
+        destinationSkin=destination_skn.name,
+        noMirror=True,
+        surfaceAssociation="closestPoint",
+        influenceAssociation=("oneToOne", "label", "closestJoint"),
+        smooth=True,
+        normalize=False,
+    )
 
     destination_skn_weights = destination_skn.weights
     target.weights = weightlist.WeightList([value[0] for value in destination_skn_weights])
@@ -263,7 +321,8 @@ def hammerShells(vertices=None, reverse=False):
             data[node_name] = [vtx.node, [vtx]]
 
     for node_name, (node, vtxs) in data.items():
-        shells = node.shells(indexOnly=True)  # Uses indexOnly for 'index in/not in shell' for much faster performance
+        # Uses indexOnly for 'index in/not in shell' for much faster performance
+        shells = node.shells(indexOnly=True)
         if config.verbose:
             print(f"Found {len(shells)} shells for '{node_name}'")
         for shell in shells:
@@ -296,12 +355,20 @@ def transferInfluenceWeights(skinCluster, influences, target_influence, add_miss
     if target_influence in all_influences:
         target_index = all_influences.index(target_influence)
     elif add_missing_target:
-        cmds.skinCluster(skinCluster.name, e=True, addInfluence=target_influence.name, lockWeights=True, weight=0.0)
+        cmds.skinCluster(
+            skinCluster.name,
+            e=True,
+            addInfluence=target_influence.name,
+            lockWeights=True,
+            weight=0.0,
+        )
         all_influences = skinCluster.influences()
         target_index = all_influences.index(target_influence)
     else:
         if config.verbose:
-            cmds.warning(f"Target influence not found in skinCluster '{skinCluster}': '{target_influence}'")
+            cmds.warning(
+                f"Target influence not found in skinCluster '{skinCluster}': '{target_influence}'"
+            )
         return False
 
     # Checks the influences are not missing from the skinCluster
@@ -314,11 +381,15 @@ def transferInfluenceWeights(skinCluster, influences, target_influence, add_miss
             missing_influences.append(inf)
     if not influence_indexes:
         if config.verbose:
-            cmds.warning(f"None of the influences were found in skinCluster '{skinCluster}': {influences}")
+            cmds.warning(
+                f"None of the influences were found in skinCluster '{skinCluster}': {influences}"
+            )
         return False
     if missing_influences:
         if config.verbose:
-            cmds.warning(f"Influences not found in skinCluster '{skinCluster}': {missing_influences}")
+            cmds.warning(
+                f"Influences not found in skinCluster '{skinCluster}': {missing_influences}"
+            )
 
     # Transferring the weights
     weights = skinCluster.weights
@@ -384,14 +455,18 @@ def skinAsNurbs(source=None, targets=None):
             config.verbose = verbose
             target_skn = getSkinCluster(target)
             if target_skn:
-                raise RuntimeError(f"Given target already has a skinCluster attached : {target}; {target_skn}.")
+                raise RuntimeError(
+                    f"Given target already has a skinCluster attached : {target}; {target_skn}."
+                )
 
             target_skin = skinAs([source, target])
             target_skin = target_skin[0]
 
             for i, _ in enumerate(target.shape.cv):
                 for j, _ in enumerate(plane_skin.influences()):
-                    target_skin.weightList[i].weights[j].value = plane_skin.weightList[i].weights[j].value
+                    target_skin.weightList[i].weights[j].value = (
+                        plane_skin.weightList[i].weights[j].value
+                    )
         except Exception as e:
             raise e
         # Making sure the temp plane gets deleted
@@ -449,25 +524,29 @@ def localizeSkinClusterInfluence(skinCluster, influence):
     """
     skinCluster, influence = nodes.yams([skinCluster, influence])
     if influence not in skinCluster.influences():
-        raise RuntimeError(f"Given influence '{influence}' is not an influence of skinCluster '{skinCluster}'")
+        raise RuntimeError(
+            f"Given influence '{influence}' is not an influence of skinCluster '{skinCluster}'"
+        )
 
     # Getting the index at which the influence is connected to the skinCluster
     influence_index = skinCluster.indexForInfluenceObject(influence)
 
     # Getting the world matrix for the influence as if the parent had not moved in the world
-    local_world_mult = nodes.createNode('multMatrix', name=f'{influence}_localWorld_MMX')
+    local_world_mult = nodes.createNode("multMatrix", name=f"{influence}_localWorld_MMX")
     influence.matrix.connectTo(local_world_mult.matrixIn[0])
     local_world_mult.matrixIn[1].value = influence.parentMatrix.value
 
     # Getting a matrix of the difference between the original world inverse matrix and the live world matrix if the
     # parent had not moved
-    localWorldDiff_localWorldInverse_mult = nodes.createNode('multMatrix', name=f'{influence}_wimWmDiff_MMX')
+    localWorldDiff_localWorldInverse_mult = nodes.createNode(
+        "multMatrix", name=f"{influence}_wimWmDiff_MMX"
+    )
     localWorldDiff_localWorldInverse_mult.matrixIn[0].value = influence.worldInverseMatrix.value
     local_world_mult.matrixSum.connectTo(localWorldDiff_localWorldInverse_mult.matrixIn[1])
 
     # Getting a matrix of the difference between the calculated live matrix difference and the current live world
     # inverse matrix
-    worldInverse_diff_mult = nodes.createNode('multMatrix', name=f'{influence}_wimDiff_MMX')
+    worldInverse_diff_mult = nodes.createNode("multMatrix", name=f"{influence}_wimDiff_MMX")
     localWorldDiff_localWorldInverse_mult.matrixSum.connectTo(worldInverse_diff_mult.matrixIn[0])
     influence.worldInverseMatrix.connectTo(worldInverse_diff_mult.matrixIn[1])
 
