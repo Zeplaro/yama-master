@@ -370,6 +370,9 @@ class Yam(abc.ABC):
         """Used to check if an object is an instance of Yam with the faster hasattr instead of slower isinstance."""
         return True
 
+    def __str__(self):
+        return self.name
+
     def __repr__(self):
         """
         Not a valid Python expression that could be used to recreate an object with the same value since the MObject and
