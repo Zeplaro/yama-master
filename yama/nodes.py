@@ -76,7 +76,7 @@ def yam(node):
 
     else:
         raise TypeError(
-            f"yam(): str, OpenMaya.MObject, OpenMaya.MDagPath or OpenMaya.MPlug expected; "
+            "yam(): str, OpenMaya.MObject, OpenMaya.MDagPath or OpenMaya.MPlug expected; "
             f"got {node.__class__.__name__}."
         )
 
@@ -137,6 +137,7 @@ def spaceLocator(name="locator", pos=(0, 0, 0), rot=(0, 0, 0), parent=None, ws=F
 @decorators.string_args
 def duplicate(*objs, **kwargs):
     """Wrapper for cmds.duplicate"""
+    kwargs["fullPath"] = True
     return yams(cmds.duplicate(objs, **kwargs))
 
 
@@ -171,19 +172,22 @@ def listAttr(*args, **kwargs):
     """
     Wrapper for cmds.listAttr returning Component objects.
 
-    @note: There is no way to get the nodes from which the attributes were queried in the results of cmds.listAttr,
-           which is why this is so convoluted.
-           The node name is extracted and stored before querying the attributes, then plugged back with the attribute
-           before being converted to a Component object with cpn.encode.
+    Notes:
+        There is no way to get the nodes from which the attributes were queried in the results of cmds.listAttr, which
+        is why this is so convoluted.
+        The node name is extracted and stored before querying the attributes, then plugged back with the attribute
+        before being converted to a Component object with cpn.encode.
 
-    @param args: [DependNode | Attribute | str, ...] The object, node or attribute to query the attributes from.
-    @param kwargs: kwargs passed on to cmds.listAttr
-    @return: list[Attribute, ...]
+    Args:
+        args (DependNode | Attribute | str): The object, node or attribute to query the attributes from.
+        kwargs: kwargs passed on to cmds.listAttr
+    Returns:
+        list[Attribute, ...]
     """
     kwargs["leaf"] = False
 
     if not args:  # Working with selection if no args to match cmds.listAttr behaviour.
-        args = cmds.ls(os=True)
+        args = cmds.ls(orderedSelection=True)
 
     node_args = []
     for arg in args:
@@ -274,7 +278,7 @@ class Singleton:
             if type_id in SupportedTypes.classes_MFn:
                 assigned_class = SupportedTypes.classes_MFn[type_id]
             else:
-                assigned_class = cls.getclass(MObject)
+                assigned_class = cls.getclass_cmds(MObject)
             yam_node = assigned_class(MObject)
             cls._instances[hash_code] = yam_node
             return yam_node
@@ -538,8 +542,20 @@ class DependNode(Yam):
 
     def addAttr(self, longName, **kwargs):
         # Checks if 'attributeType' or 'at' is in kwargs and has a value
-        if not kwargs.get("at") and not kwargs.get("attributeType"):
-            raise RuntimeError("No attribute type given")
+        if "at" not in kwargs and "attributeType" not in kwargs:
+            raise RuntimeError(
+                f"Failed to add attribute '{longName}' on '{self}'; No attribute type given"
+            )
+
+        # Enabling hasMinValue or hasMaxValue toggle if a min or max value is given
+        if (kwargs.get("min") or kwargs.get("minValue")) and not (
+            "hasMinValue" in kwargs or "hnv" in kwargs
+        ):
+            kwargs["hasMinValue"] = True
+        if (kwargs.get("max") or kwargs.get("maxValue")) and not (
+            "hasMaxValue" in kwargs or "hxv" in kwargs
+        ):
+            kwargs["hasMaxValue"] = True
 
         cmds.addAttr(self.name, longName=longName, **kwargs)
         return self.attr(longName)
@@ -613,23 +629,27 @@ class DependNode(Yam):
             self._types = cmds.nodeType(self.name, inherited=True)
         return self._types
 
-    def isa(self, nodeType) -> bool:
-        """Returns True is self is of the given type."""
-        if isinstance(nodeType, str):
-            return nodeType in self.types()
+    @abc.abstractmethod
+    def types(self):
+        pass
 
-        elif isinstance(nodeType, (list, tuple)):
-            for t in nodeType:
+    def isa(self, types) -> bool:
+        """Returns True is self is of the given type."""
+        if isinstance(types, str):
+            return types in self.types()
+
+        elif isinstance(types, (list, tuple)):
+            for t in types:
                 if self.isa(t):
                     return True
             return False
 
-        elif isinstance(nodeType, type):
-            return isinstance(self, nodeType)
+        elif isinstance(types, type):
+            return isinstance(self, types)
 
         raise TypeError(
-            f"{type(nodeType).__name__} is not a valid parameter type for .isa() , "
-            f"valid  types are: str, list, tuple, type."
+            f"{type(types).__name__} is not a valid parameter type for .isa() , "
+            "valid  types are: str, list, tuple, type."
         )
 
     @property
@@ -855,7 +875,7 @@ class Transform(DagNode):
 
         if not isinstance(obj, (Transform, components.Component)):
             raise AttributeError(
-                f"wrong type given, expected : 'Transform', 'Component' or 'str', "
+                "wrong type given, expected : 'Transform', 'Component' or 'str', "
                 f"got : {obj.__class__.__name__}"
             )
 
@@ -877,9 +897,9 @@ class Constraint(Transform):
 
     def _raise_no_func(self):
         raise RuntimeError(
-            f"No associated cmds constraint function found for : '{self.name}'. Constraint should not be"
-            f" instanced on its own, only used as inherited class for actual constraint type nodes, "
-            f"e.g.: 'parentConstraint', 'orientConstraint', etc..."
+            f"No associated cmds constraint function found for : '{self.name}'. Constraint should"
+            " not be instanced on its own, only used as inherited class for actual constraint type"
+            " nodes, e.g.: 'parentConstraint', 'orientConstraint', etc..."
         )
 
     def weightAttrs(self):
@@ -1219,7 +1239,7 @@ class Cluster(WeightGeometryFilter):
         cluster_grp.matrix.connectTo(self.weightedMatrix, force=True)
         cluster_grp.parentInverseMatrix.connectTo(self.bindPreMatrix, force=True)
         cluster_grp.parentMatrix.connectTo(self.preMatrix, force=True)
-        self.clusterXforms.breakConnections()
+        self.clusterXforms.breakConnection()
         cmds.delete(handle_shape.parent.name)
         return root_grp
 
@@ -1262,7 +1282,7 @@ class SoftMod(WeightGeometryFilter):
         softMod_grp.parentMatrix.connectTo(dmx.inputMatrix)
         dmx.outputTranslate.connectTo(self.falloffCenter, force=True)
 
-        self.softModXforms.breakConnections()
+        self.softModXforms.breakConnection()
         cmds.delete(handle_shape.parent.name)
         return root_grp
 
@@ -1273,6 +1293,132 @@ class SoftMod(WeightGeometryFilter):
 
 class SkinCluster(GeometryFilter):
     _MFN_FUNC = oma.MFnSkinCluster
+
+    @classmethod
+    def create(
+        cls,
+        geometry: "str | CpnNode",
+        influences: "[str | Joint, ...]",
+        name: str = None,
+        createBindPose: bool = True,
+        weights: "[[float, ...], int] | None" = None,
+        setDefaultWeights: bool = False,
+        lockGeometryTRS: bool = True,
+    ) -> "SkinCluster":
+        """
+        Creates a skinCluster node on the given mesh with the given influences.
+
+        Warnings:
+            If no weights are given and setDefaultWeights is set to False: maya will fatal error if you try to paint
+            skin weights using the paint skin weights tool.
+
+        Notes:
+            When creating a bindPose manually and in order for it to work properly, like it would when created via
+            cmds.skinCluster, the bindPose attribute "xformMatrix" must be set with the local matrix value of each
+            binPose members. This attribute is hidden, does not show when using the node editor "Show All Attributes" or
+            in the connection editor, and was a pain in the a** to find.
+
+        Args:
+            geometry (str|CpnNode): The geometry to deform with the created skinCluster.
+            influences (list): A list of skinCluster influences.
+            name (str): The name of the created skinCluster node.
+            createBindPose (bool): If True: create a dagPose node and connects it to the skinCluster and influences.
+            weights: (list|None): The weights for the skinCluster in the same format as returned by the .getWeights
+                                  method.
+            setDefaultWeights (bool): If True sets the weights to 1.0 for all vertices on the first influences. This
+                                      prevents maya from getting a fatal error when trying to paint the weights when no
+                                      weights are set on the skinCluster.
+            lockGeometryTRS (bool): If True: locks the translate, rotate, and scale attributes of the given geometry
+                                    transform.
+
+        Returns:
+            (SkinCluster): The initialized skinCluster object for the skinCluster node.
+        """
+        if isinstance(influences, (str, Yam)):
+            influences = [influences]
+        influences = yams(influences)
+
+        # Creating the skinCluster with its connections to the geometry
+        skinCluster = yam(cmds.deformer(str(geometry), type="skinCluster")[0])
+
+        if lockGeometryTRS:
+            geometry = yam(geometry)
+            if geometry.isa("shape"):
+                geometry = geometry.parent
+            for trs in "trs":
+                for xyz in "xyz":
+                    geometry.attr(trs + xyz).lock()
+
+        if name:
+            skinCluster.name = name
+
+        # Connecting the influences to the skinCluster
+        for index, inf in enumerate(influences):
+            inf.worldMatrix.connectTo(skinCluster.matrix[index])
+            inf.objectColorRGB.connectTo(skinCluster.influenceColor[index])
+            if not inf.hasattr("lockInfluenceWeights"):
+                inf.addAttr(
+                    "lockInfluenceWeights",
+                    shortName="liw",
+                    cachedInternally=True,
+                    minValue=0,
+                    maxValue=1,
+                    attributeType="bool",
+                )
+            inf.lockInfluenceWeights.connectTo(skinCluster.lockWeights[index])
+
+        # Creating the skinCluster bindPose
+        if createBindPose:
+            bindPose = createNode("dagPose", name="bindPose")
+            bindPose.message.connectTo(skinCluster.bindPose)
+
+            # Connecting the joints and all their parents to the bindPose node in the same way the cmds.skinCluster
+            # function would have connected them.
+            members = {}
+            for inf in influences:
+                for node in inf.allParents() + [inf]:
+                    if node in members:
+                        continue
+
+                    # Connecting and saving the bindPose members attribute.
+                    member_attr = bindPose.members.nextAvailableElement()
+                    member_index = member_attr.index()
+                    node.message.connectTo(member_attr)
+                    members[node] = member_attr
+
+                    # Connecting the corresponding bindPose parents attribute.
+                    parent = node.parent
+                    if parent:
+                        members[parent].connectTo(bindPose.parents[member_index])
+
+                    # Setting or connecting the node's world matrix to the bindPose worldMatrix attribute.
+                    if node not in influences:
+                        bindPose.worldMatrix[member_index].value = node.worldMatrix.value
+                    else:
+                        node.worldMatrix.connectTo(bindPose.worldMatrix[member_index])
+
+                    # Setting the node's matrix to bindPose xformMatrix attribute, which is necessary for the bindPose
+                    # reset maya tool to function properly.
+                    bindPose.xformMatrix[member_index].value = node.matrix.value
+
+        # Setting the given weights
+        if weights:
+            skinCluster.setWeights(weights)
+
+        # Sets the weights to 1.0 for all vertices on the first influences. This prevents a fatal error if we try to
+        # paint the weights when no weights are set on the skinCluster.
+        elif setDefaultWeights:
+            cmds.skinPercent(
+                skinCluster.name,
+                skinCluster.geometry.name,
+                transformValue=[skinCluster.influences()[0].name, 1.0],
+                zri=True,
+            )
+
+        # Resetting the skinCluster bindPreMatrix to the current joints positions
+        skinCluster.reskin()
+
+        return skinCluster
 
     def influences(self):
         return yams(self.MFn.influenceObjects())
@@ -1632,8 +1778,8 @@ class BlendShape(WeightGeometryFilter):
         temp.name = name
         if name_warning and config.verbose:
             cmds.warning(
-                f"An object with the same given target name : {name}, exists in the scene. Target name used "
-                f"instead is : {temp.shortName}."
+                f"An object with the same given target name : {name}, exists in the scene. Target"
+                f" name used instead is : {temp.shortName}."
             )
 
         target = self.addTarget(temp)
@@ -1930,7 +2076,8 @@ class SupportedTypes:
     if diff:
         cmds.warning("#" * 82)
         cmds.warning(
-            f"There is a node class in classes_MFn dict that is not listed in classes_str : '{diff}'"
+            "There is a node class in classes_MFn dict that is not listed in classes_str :"
+            f" '{diff}'"
         )
         cmds.warning("#" * 82)
 
@@ -1988,7 +2135,8 @@ class YamList(list):
             for item in self:
                 if not hasattr(item, "isAYamObject"):
                     raise TypeError(
-                        f"YamList can only contain Yam objects. '{item}' is '{type(item).__name__}'."
+                        f"YamList can only contain Yam objects. '{item}' is"
+                        f" '{type(item).__name__}'."
                     )
 
     def append(self, item):
@@ -2048,49 +2196,25 @@ class YamList(list):
         except TypeError:
             return attrs
 
-    def keepType(self, nodeType):
+    def keepType(self, types):
         """
         Remove all nodes that are not of the given type.
-        :param nodeType: str or list, e.g.: 'joint' or ['blendShape', 'skinCluster']
+        :param types: str or list, e.g.: 'joint' or ['blendShape', 'skinCluster']
         """
-        if not isinstance(nodeType, (tuple, list)):
-            nodeType = [nodeType]
-        if not all(isinstance(x, str) or hasattr(x, "isAYamObject") for x in nodeType):
-            raise TypeError(
-                f"Expected : 'str' or Yam or 'list(str, Yam, ...)' but was given '{nodeType}'."
-            )
         for i, item in reversed(list(enumerate(self))):
-            inherited_types = item.inheritedTypes()
-            for type_ in nodeType:
-                if hasattr(type_, "isAYamObject"):
-                    if not isinstance(item, type_):
-                        self.pop(i)
-                else:
-                    if type_ not in inherited_types:
-                        self.pop(i)
+            if not item.isa(types):
+                self.pop(i)
 
-    def popType(self, nodeType):
+    def popType(self, types):
         """
         Removes all nodes of given type from current object and returns them in a new YamList.
-        :param nodeType: str or list, e.g.: 'joint' or ['blendShape', 'skinCluster']
+        :param types: str or list, e.g.: 'joint' or ['blendShape', 'skinCluster']
         :return: YamList of the removed nodes
         """
         popped = YamList()
-        if not isinstance(nodeType, (tuple, list)):
-            nodeType = [nodeType]
-        if not all(isinstance(x, str) or hasattr(x, "isAYamObject") for x in nodeType):
-            raise TypeError(
-                f"Expected : 'str' or Yam or 'list(str, Yam, ...)' but was given '{nodeType}'."
-            )
         for i, item in reversed(list(enumerate(self))):
-            inherited_types = item.inheritedTypes()
-            for type_ in nodeType:
-                if hasattr(type_, "isAYamObject"):
-                    if not isinstance(item, type_):
-                        self.pop(i)
-                else:
-                    if type_ in inherited_types:
-                        popped.append(self.pop(i))
+            if item.isa(types):
+                popped.append(self.pop(i))
         return popped
 
     def copy(self):
@@ -2111,9 +2235,6 @@ class Yum:
     And get node :
     >>> yum.nodeName
     """
-
-    def __init__(self):
-        super().__init__()
 
     def __getattr__(self, item):
         return yam(item)
