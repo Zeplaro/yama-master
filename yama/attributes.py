@@ -86,6 +86,7 @@ class Attribute(nodes.Yam):
         self._children = []  # List of all children Attributes
         self._children_generated = False
         self._hashCode = None
+        self._types = None
 
     def __repr__(self):
         return f"{self.__class__.__name__}('{self.node}.{self.attribute}')"
@@ -399,20 +400,11 @@ class Attribute(nodes.Yam):
     def outputs(self, **kwargs):
         return self.listConnections(source=False, **kwargs)
 
-    def breakConnections(self, source=True, destination=False):
-        if source:
-            connection = self.input()
-            if connection:
-                connection.disconnect(self)
-        if destination:
-            for c in self.outputs():
-                self.disconnect(c)
-
-    def breakInput(self):
-        self.breakConnections(source=True, destination=False)
-
-    def breakOutputs(self):
-        self.breakConnections(source=False, destination=True)
+    def breakConnection(self):
+        connection = self.input()
+        if connection:
+            connection.disconnect(self)
+            return connection
 
     def listAttr(self, **kwargs):
         """
@@ -422,12 +414,17 @@ class Attribute(nodes.Yam):
         """
         return nodes.listAttr(self, **kwargs)
 
+    def types(self):
+        if self._types is None:
+            self._types = ["attribute", cmds.getAttr(self.name, type=True)]
+        return self._types
+
     def type(self):
         """
         Returns the type of data currently in the attribute.
         :return: str
         """
-        return cmds.getAttr(self.name, type=True)
+        return self.types()[-1]
 
     @property
     def defaultValue(self):
@@ -575,8 +572,8 @@ class Attribute(nodes.Yam):
             cmds.aliasAttr(alias, real_name)
         except RuntimeError as e:
             raise RuntimeError(
-                f"Could not rename attribute :'{real_name}', alias :'{self.attribute}', to '{alias}'; "
-                f"{e}"
+                f"Could not rename attribute :'{real_name}', alias :'{self.attribute}', to"
+                f" '{alias}'; {e}"
             )
 
     @property
