@@ -892,24 +892,44 @@ def getMPlugValue(MPlug):
                 return []
             return [(x.x, x.y, x.z) for x in mfn.array()]
         elif attr_type == om.MFnData.kComponentList:
-            # TODO: fails to get MPlug.asMObject() if empty data
+            from . import components
+
             try:
                 mfn = om.MFnComponentListData(MPlug.asMObject())
             except RuntimeError:
                 return []
-            # TODO : Fails to .get if empty list
-            try:
-                component = mfn.get(0)
-            except IndexError:
-                if config.verbose:
-                    cmds.warning(
-                        f"Failed to get MFnComponentListData on {MPlug.name()}; Assumed it's empty"
-                    )
-                return []
-            return list(om.MFnSingleIndexedComponent(component).getElements())
+            elements = []
+            for i in range(mfn.length()):
+                component = mfn.get(i)
+                # Single indexed components, e.g.: mesh vertices
+                if component.hasFn(om.MFn.kSingleIndexedComponent):
+                    component_mfn = om.MFnSingleIndexedComponent(component)
+                    type_preffix = components.SupportedTypes.MFNID_COMPONENT_CLASS[
+                        component_mfn.componentType
+                    ][0]
+                    elements += [f"{type_preffix}[{x}]" for x in component_mfn.getElements()]
+                # Double indexed components, e.g.: surface cvs
+                elif component.hasFn(om.MFn.kDoubleIndexedComponent):
+                    component_mfn = om.MFnDoubleIndexedComponent(component)
+                    type_preffix = components.SupportedTypes.MFNID_COMPONENT_CLASS[
+                        component_mfn.componentType
+                    ][0]
+                    elements += [
+                        f"{type_preffix}[{x}][{y}]" for x, y in component_mfn.getElements()
+                    ]
+                # Triple indexed components, e.g.: lattice point
+                else:
+                    component_mfn = om.MFnTripleIndexedComponent(component)
+                    type_preffix = components.SupportedTypes.MFNID_COMPONENT_CLASS[
+                        component_mfn.componentType
+                    ][0]
+                    elements += [
+                        f"{type_preffix}[{x}][{y}][{z}]" for x, y, z in component_mfn.getElements()
+                    ]
+            return elements
         else:
             raise NotImplementedError(
-                f"Attribute of MFnData type '{nodes.MFNDATA_TYPE_NAMES[attr_type]}' not supported"
+                f"Attribute '{MPlug.name()}' of MFnData type {attr_type} not supported."
             )
     elif attr_type == om.MFn.kTimeAttribute:
         return MPlug.asMTime().asUnits(om.MTime.uiUnit())
