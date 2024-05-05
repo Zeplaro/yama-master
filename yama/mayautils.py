@@ -312,21 +312,21 @@ def unlockTRSV(
             if keyable:
                 obj.attr(attr).keyable = True
             if breakConnections:
-                obj.attr(attr).breakConnections()
+                obj.attr(attr).breakConnection()
             for xyz in "xyz":
                 if unlock:
                     obj.attr(attr + xyz).locked = False
                 if keyable:
                     obj.attr(attr + xyz).keyable = True
                 if breakConnections:
-                    obj.attr(attr + xyz).breakConnections()
+                    obj.attr(attr + xyz).breakConnection()
         if v:
             if unlock:
                 obj.v.locked = False
             if keyable:
                 obj.v.keyable = True
             if breakConnections:
-                obj.v.breakConnections()
+                obj.v.breakConnection()
 
 
 def createPolyNgon(name="pNgon1", radius=0.1, sides=3, upAxis="y", parent=None):

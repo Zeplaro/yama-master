@@ -206,7 +206,6 @@ def recursive_map(func, iterable, *, recursiontypes=(tuple, list), forcerecursio
     """
     for item in iterable:
         if isinstance(item, recursiontypes):
-
             if forcerecursiontypes:
                 for type_ in recursiontypes:
                     if isinstance(item, type_):

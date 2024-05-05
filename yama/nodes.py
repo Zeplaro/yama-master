@@ -7,6 +7,7 @@ yam or yams to initialize existing objects into their proper class type.
 """
 
 import abc
+import math
 
 from maya import cmds
 import maya.api.OpenMaya as om
@@ -218,6 +219,29 @@ def listAttr(*args, **kwargs):
 
 
 @decorators.string_args
+def listHistory(*args, type: "str | [str, ...]" = None, **kwargs) -> ["DependNode", ...]:
+    """
+    Wrapper for cmds.listHistory returning Yam objects.
+
+    Notes:
+        Unlike cmds.listHistory(), this function can take a 'type' kwarg to filter nodes per types.
+
+    Args:
+        args (DependNode | str): The node to query the history from.
+        type (str): Filters only the nodes of this type.
+        kwargs: kwargs passed on to cmds.listHistory .
+    Returns:
+        list[DependNode, ...]
+    """
+    history = yams(cmds.listHistory(*args, **kwargs) or [])
+
+    if type:
+        history = [x for x in history if x.isa(type)]
+
+    return history
+
+
+@decorators.string_args
 def constraint(*args, type, **kwargs):
     func = getattr(cmds, type)
 
@@ -390,6 +414,29 @@ class Yam(abc.ABC):
         :return: True
         """
         return True
+
+    @abc.abstractmethod
+    def types(self):
+        pass
+
+    def isa(self, types) -> bool:
+        """Returns True is self is of the given type."""
+        if isinstance(types, str):
+            return types in self.types()
+
+        elif isinstance(types, (list, tuple)):
+            for t in types:
+                if self.isa(t):
+                    return True
+            return False
+
+        elif isinstance(types, type):
+            return isinstance(self, types)
+
+        raise TypeError(
+            f"{type(types).__name__} is not a valid parameter type for .isa() , "
+            "valid  types are: str, list, tuple, type."
+        )
 
 
 class DependNode(Yam):
@@ -629,29 +676,6 @@ class DependNode(Yam):
             self._types = cmds.nodeType(self.name, inherited=True)
         return self._types
 
-    @abc.abstractmethod
-    def types(self):
-        pass
-
-    def isa(self, types) -> bool:
-        """Returns True is self is of the given type."""
-        if isinstance(types, str):
-            return types in self.types()
-
-        elif isinstance(types, (list, tuple)):
-            for t in types:
-                if self.isa(t):
-                    return True
-            return False
-
-        elif isinstance(types, type):
-            return isinstance(self, types)
-
-        raise TypeError(
-            f"{type(types).__name__} is not a valid parameter type for .isa() , "
-            "valid  types are: str, list, tuple, type."
-        )
-
     @property
     def hashCode(self):
         if not self._hashCode:
@@ -745,6 +769,30 @@ class DagNode(DependNode):
     @property
     def fullPath(self):
         return self.longName
+
+    def allParents(self, reverse: bool = False) -> ["Transform", ...]:
+        """
+        Returns a list of all the nodes parent up to world.
+        Order if not reversed is from closest to the world to closest to the node.
+
+        Args:
+            reverse (bool): If True: returns the list in reverse order.
+
+        Returns:
+            (list): List of the node's parents.
+        """
+
+        def getParents(node):
+            """Gets the parents of the node recursively."""
+            parent = node.parent
+            if parent:
+                return getParents(parent) + [parent]
+            return []
+
+        parents = getParents(self)
+        if reverse:
+            parents.reverse()
+        return parents
 
 
 class Transform(DagNode):
@@ -944,7 +992,6 @@ class AimConstraint(Constraint):
 
 
 class Shape(DagNode):
-
     @property
     def parent(self):
         return super().parent
@@ -1124,9 +1171,33 @@ class NurbsSurface(SurfaceShape):
         """
         return self.MFn.numCVsInV
 
+    def getOrientationAtParam(self, u, v, ws=True):
+        # TODO: Add up, u, and v axis kwarg
+        space = om.MSpace.kWorld if ws else om.MSpace.kObject
+
+        normal = self.MFn.normal(u, v, space=space).normalize()
+        tangentU, tangentV = self.MFn.tangents(u, v, space=space)
+        tangentU, tangentV = tangentU.normalize(), tangentV.normalize()
+        matrix = (
+            list(tangentV)
+            + [0.0]
+            + list(normal)
+            + [0.0]
+            + list(tangentU)
+            + [0.0, 0.0, 0.0, 0.0, 1.0]
+        )
+        mmatrix = om.MMatrix(matrix)
+        trans_matrix = om.MTransformationMatrix(mmatrix)
+        euler_radians = trans_matrix.rotation()
+        euler_degrees = [math.degrees(angle) for angle in euler_radians]
+        return euler_degrees
+
+    def getPositionAtParam(self, u, v, ws=True):
+        space = om.MSpace.kWorld if ws else om.MSpace.kObject
+        return list(self.MFn.getPointAtParam(u, v, space=space))[:-1]
+
 
 class Lattice(ControlPoint):
-
     def __len__(self):
         """
         Returns the number of points in the lattice
@@ -1172,17 +1243,15 @@ class GeometryFilter(DependNode):
         geo = cmds.deformer(self.name, q=True, geometry=True)
         return yam(geo[0]) if geo else None
 
-    def getDeformerSetGeoAndComponents(self):
+    def getComponentAtIndex(self, index=0):
         """
-        Gets the OpenMaya conponents influenced by the deformer and the deformed geometry
-        :return: (om.MDagPath, om.MObject)
+        Gets the OpenMaya components influenced by the deformer at the given index.
+        :return: om.MObject
         """
-        mfn_set = om.MFnSet(self.MFn.deformerSet)
-        return mfn_set.getMembers(True).getComponent(0)
+        return self.MFn.getComponentAtIndex(index)
 
 
 class WeightGeometryFilter(GeometryFilter):
-
     def getWeights(self, force_clamp=True, min_value=0.0, max_value=1.0, round_value=None):
         geometry = self.geometry
         if not geometry:
@@ -1219,7 +1288,6 @@ class WeightGeometryFilter(GeometryFilter):
 
 
 class Cluster(WeightGeometryFilter):
-
     def localize(self):
         """
         Adds a 'root' node as parent of the cluster. The root can be moved around without the cluster having an
@@ -1249,7 +1317,6 @@ class Cluster(WeightGeometryFilter):
 
 
 class SoftMod(WeightGeometryFilter):
-
     def localize(self):
         """
         Adds a 'root' node as parent of the softMod. The root can be moved around to change from where the softMod
@@ -1370,6 +1437,7 @@ class SkinCluster(GeometryFilter):
         # Creating the skinCluster bindPose
         if createBindPose:
             bindPose = createNode("dagPose", name="bindPose")
+            bindPose.bindPose.value = True
             bindPose.message.connectTo(skinCluster.bindPose)
 
             # Connecting the joints and all their parents to the bindPose node in the same way the cmds.skinCluster
@@ -1382,7 +1450,7 @@ class SkinCluster(GeometryFilter):
 
                     # Connecting and saving the bindPose members attribute.
                     member_attr = bindPose.members.nextAvailableElement()
-                    member_index = member_attr.index()
+                    member_index = member_attr.index
                     node.message.connectTo(member_attr)
                     members[node] = member_attr
 
@@ -1452,7 +1520,8 @@ class SkinCluster(GeometryFilter):
         if hasattr(influence, "isAYamNode"):
             influence = self.influences().index(influence)
         if not geo or not components:
-            geo, components = self.getDeformerSetGeoAndComponents()
+            geo = self.geometry.MDagPath
+            components = self.getComponentAtIndex()
         return weightlist.WeightList(self.MFn.getWeights(geo, components, influence))
 
     def setInfluenceWeights(self, influence, weights, geo=None, components=None):
@@ -1475,14 +1544,16 @@ class SkinCluster(GeometryFilter):
         else:
             inf_index = influence
         if not geo or not components:
-            geo, components = self.getDeformerSetGeoAndComponents()
-
+            geo = self.geometry.MDagPath
+            components = self.getComponentAtIndex()
         self.MFn.setWeights(geo, components, om.MIntArray([inf_index]), om.MDoubleArray(weights))
 
     def getWeights(self, force_clamp=True, min_value=0.0, max_value=1.0, round_value=None):
         weights = []
         # Getting the weights
-        weights_array, num_influences = self.MFn.getWeights(*self.getDeformerSetGeoAndComponents())
+        weights_array, num_influences = self.MFn.getWeights(
+            self.geometry.MDagPath, self.getComponentAtIndex()
+        )
 
         for i in range(0, len(weights_array), num_influences):
             weights.append(
@@ -1511,14 +1582,15 @@ class SkinCluster(GeometryFilter):
         self.setWeightsOM(weights)
 
     def setWeightsOM(self, weights):
-        geo, components = self.getDeformerSetGeoAndComponents()
         # Getting an array of the influences indexes
         num_influences = len(self.influences())
         influence_array = om.MIntArray(range(num_influences))
         # Flattening the list of weights into a single list
         flat_weights = om.MDoubleArray([i[j] for i in weights for j in range(num_influences)])
         # Setting the weights
-        self.MFn.setWeights(geo, components, influence_array, flat_weights)
+        self.MFn.setWeights(
+            self.geometry.MDagPath, self.getComponentAtIndex(), influence_array, flat_weights
+        )
 
     @property
     def weights(self):
@@ -1530,7 +1602,7 @@ class SkinCluster(GeometryFilter):
 
     def getDQWeigts(self, force_clamp=True, min_value=0.0, max_value=1.0, round_value=None):
         return weightlist.WeightList(
-            self.MFn.getBlendWeights(*self.getDeformerSetGeoAndComponents()),
+            self.MFn.getBlendWeights(self.geometry.MDagPath, self.getComponentAtIndex()),
             force_clamp=force_clamp,
             min_value=min_value,
             max_value=max_value,
@@ -1546,11 +1618,10 @@ class SkinCluster(GeometryFilter):
             self.setDQWeightsOM(weights)
 
     def setDQWeightsOM(self, weights):
-        geo, components = self.getDeformerSetGeoAndComponents()
         # Converting the data into maya array
         weights = om.MDoubleArray(weights)
         # Setting the weights
-        self.MFn.setBlendWeights(geo, components, weights)
+        self.MFn.setBlendWeights(self.geometry.MDagPath, self.getComponentAtIndex(), weights)
 
     @property
     def dQWeights(self):
@@ -1825,7 +1896,6 @@ class BlendShape(WeightGeometryFilter):
 
 
 class UVPin(DependNode):
-
     @staticmethod
     def createUVPin(mesh, name=None):
         mesh = yam(mesh)

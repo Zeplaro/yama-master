@@ -6,18 +6,23 @@ from maya import cmds, mel
 from . import nodes, decorators, components, config, weightlist, checks
 
 
-def getSkinCluster(obj, firstOnly=True):
-    # type: (nodes.Yam, bool) -> nodes.SkinCluster | nodes.YamList[nodes.SkinCluster] | None
-    """TODO: which way is better : listHistory or ls ?"""
-    skinClusters = cmds.listHistory(str(obj), pdo=True)
-    skinClusters = cmds.ls(skinClusters, type="skinCluster")
-    if firstOnly:
-        return nodes.yam(skinClusters[0]) if skinClusters else None
-    return nodes.yams(skinClusters) if skinClusters else nodes.YamList()
+def getSkinCluster(obj: "DependNode | str") -> "SkinCluster | None":
+    skinClusters = nodes.listHistory(obj, pruneDagObjects=True, type="skinCluster")
+    return skinClusters[0] if skinClusters else None
 
 
 def getSkinClusters(objs, firstOnly=True):
-    return nodes.YamList([getSkinCluster(obj, firstOnly=firstOnly) for obj in objs])
+    if isinstance(objs, (str, nodes.DependNode)):
+        objs = [objs]
+
+    skns = nodes.YamList()
+    for obj in objs:
+        skn = nodes.listHistory(obj, pruneDagObjects=True, type="skinCluster")
+        if firstOnly and skn:
+            skns.append(skn[0])
+        elif skn:
+            skns += skn
+    return skns
 
 
 def skinAs(
@@ -52,10 +57,11 @@ def skinAs(
 
     if isinstance(objs, str):
         raise RuntimeError(
-            f"first arg objs='{objs}' is of type {type(objs).__name__} instead of expected type: list"
+            f"first arg objs='{objs}' is of type {type(objs).__name__} instead of expected type:"
+            " list"
         )
     if not objs:
-        objs = nodes.ls(sl=True, tr=True, fl=True)
+        objs = nodes.ls(selection=True, transforms=True, flatten=True)
 
         def getSkinnable(objs_):
             skinnable = []
@@ -88,9 +94,11 @@ def skinAs(
         if intermediate_shapes and prompt:
             result = cmds.confirmDialog(
                 title="Confirm",
-                message=f"These targets already have intermediate shapes on them : "
-                f"{intermediate_shapes}\n"
-                f"Do you want to continue ?",
+                message=(
+                    "These targets already have intermediate shapes on them : "
+                    f"{intermediate_shapes}\n"
+                    "Do you want to continue ?"
+                ),
                 button=["Yes", "Cancel", "Delete them"],
                 defaultButton="Yes",
                 cancelButton="Cancel",
@@ -156,9 +164,8 @@ def skinAs(
             else:
                 target_influences = source_influences
 
-        nodes.select(target_influences, target)
-        target_skinCluster = nodes.yam(
-            cmds.skinCluster(name=f"{target.shortName}_SKN", **kwargs)[0]
+        target_skinCluster = nodes.SkinCluster.create(
+            target, target_influences, name=f"{target.shortName}_SKN"
         )
         cmds.copySkinWeights(
             ss=source_skn.name,
@@ -174,13 +181,13 @@ def skinAs(
     return skinClusters
 
 
-def reskin(objs=None):
+def reskin(objs=None, firstOnly=False):
     if not objs:
         objs = nodes.selected()
         if not objs:
             raise RuntimeError("No object given and no object selected")
-    objs = nodes.yams(objs)
-    for skn in getSkinClusters(objs):
+
+    for skn in getSkinClusters(objs, firstOnly=firstOnly):
         skn.reskin()
 
 
@@ -235,7 +242,7 @@ def copyDeformerWeights(source, target, sourceGeo=None, destinationGeo=None):
         )
 
     # Creating temp geos
-    temp_source_geo, temp_dest_geo = nodes.yams(cmds.duplicate(sourceGeo.name, destinationGeo.name))
+    temp_source_geo, temp_dest_geo = nodes.duplicate(sourceGeo.name, destinationGeo.name)
     temp_source_geo.name = "temp_source_geo"
     temp_dest_geo.name = "temp_dest_geo"
     # Removing shapeOrig

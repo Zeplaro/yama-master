@@ -4,7 +4,7 @@
 Contains all the class and functions for maya components.
 """
 # TODO : Improve getComponent func
-# TODO : fixed setPositionsOM on cvs ?
+# TODO : fix setPositionsOM on cvs ?
 from abc import ABCMeta, abstractmethod
 
 from maya import cmds
@@ -82,12 +82,14 @@ class Components(nodes.Yam):
         super().__init__()
         if not isinstance(node, nodes.ControlPoint):
             raise TypeError(
-                f"Expected component node of type ControlPoint, instead got : {node}, {type(node).__name__}"
+                f"Expected component node of type ControlPoint, instead got : {node},"
+                f" {type(node).__name__}"
             )
         self.node = node
         self.api_type = apiType
         self.component_name = SupportedTypes.MFNID_COMPONENT_CLASS[apiType][0]
         self.component_class = SupportedTypes.MFNID_COMPONENT_CLASS[apiType][2]
+        self._types = None
 
     def __getitem__(self, item):
         if item == "*":
@@ -132,11 +134,13 @@ class Components(nodes.Yam):
         for x, value in zip(self, values):
             x.setPosition(value, ws=ws)
 
-    def type(self):
-        return self.api_type
+    def types(self):
+        if self._types is None:
+            self._types = ["components", self.api_type]
+        return self._types
 
-    def inheritedTypes(self):
-        return ["component", self.api_type]
+    def type(self):
+        return self.types()[-1]
 
 
 class SingleIndexed(Components):
@@ -256,6 +260,7 @@ class Component(nodes.Yam):
         self.index = index
         self.second_index = secondIndex
         self.third_index = thirdIndex
+        self._types = None
 
     @property
     def isAYamComponent(self):
@@ -269,16 +274,19 @@ class Component(nodes.Yam):
     def __repr__(self):
         if self.third_index is not None:
             return (
-                f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}', {self.index}, "
-                f"{self.second_index}, {self.third_index})"
+                f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}',"
+                f" {self.index}, {self.second_index}, {self.third_index})"
             )
         elif self.second_index is not None:
             return (
-                f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}', {self.index}, "
-                f"{self.second_index})"
+                f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}',"
+                f" {self.index}, {self.second_index})"
             )
         else:
-            return f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}', {self.index})"
+            return (
+                f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}',"
+                f" {self.index})"
+            )
 
     def __getitem__(self, item):
         """
@@ -334,11 +342,13 @@ class Component(nodes.Yam):
     def setPosition(self, value, ws=False):
         cmds.xform(self.name, t=value, ws=ws, os=not ws)
 
-    def type(self):
-        return self.components.api_type
+    def types(self):
+        if self._types is None:
+            self._types = ["component", self.components.api_type]
+        return self._types
 
-    def inheritedTypes(self):
-        return ["component", self.components.api_type]
+    def type(self):
+        return self.types()[-1]
 
 
 class MeshVertex(Component):
@@ -406,6 +416,7 @@ class ComponentsSlice(nodes.Yam):
         self.node = node
         self.components = components
         self._slice = components_slice
+        self._types = None
 
     @property
     def start(self):
@@ -442,7 +453,10 @@ class ComponentsSlice(nodes.Yam):
         return self.name
 
     def __repr__(self):
-        return f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}', {self.slice})"
+        return (
+            f"{self.__class__.__name__}('{self.node}', '{self.components.component_name}',"
+            f" {self.slice})"
+        )
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -481,11 +495,12 @@ class ComponentsSlice(nodes.Yam):
     def index(self):
         return self.slice
 
-    def type(self):
-        return self.components.api_type
+    def types(self):
+        if self._types is None:
+            self._types = ["components", self.components.api_type]
 
-    def inheritedTypes(self):
-        return ["component", self.components.api_type]
+    def type(self):
+        return self.types()[-1]
 
     def getPositions(self, ws=False):
         return [x.getPosition(ws=ws) for x in self]
