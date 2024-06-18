@@ -77,27 +77,47 @@ def skinAs(
     source = nodes.yam(objs[0])
     targets = mut.hierarchize(objs[1:], reverse=True)
 
+    source_skn = getSkinCluster(source)
+    if not source_skn:
+        raise ValueError("First object as no skinCluster attached")
+
     free_targets = []
     for target in targets:
         # Checking for already attached skin on target
-        if getSkinCluster(target):
+        skn = getSkinCluster(target)
+        if skn:
             if config.verbose:
                 cmds.warning(f"{target} already has a skinCluster attached")
-            continue
+            if prompt:
+                result = cmds.confirmDialog(
+                    title="Confirm",
+                    message=(
+                        f"Target '{target}' already has a skinCluster attached : '{skn}'\n"
+                        "Do you want to continue ?"
+                    ),
+                    button=["Yes", "Cancel"],
+                    defaultButton="Yes",
+                    cancelButton="Cancel",
+                    dismissString="Cancel",
+                )
+                if result == "Cancel":
+                    cmds.warning("SkinAs operation cancelled")
+                    return
+                free_targets.append(target)
+                continue
         else:
             free_targets.append(target)
 
         # Checking for intermediate shapes on target
-        intermediate_shapes = [
+        intermediate_shapes = nodes.YamList(
             shape for shape in target.shapes(noIntermediate=False) if shape.intermediateObject.value
-        ]
+        )
         if intermediate_shapes and prompt:
             result = cmds.confirmDialog(
                 title="Confirm",
                 message=(
-                    "These targets already have intermediate shapes on them : "
-                    f"{intermediate_shapes}\n"
-                    "Do you want to continue ?"
+                    f"Target '{target}' already has intermediate shapes :"
+                    f" {intermediate_shapes.names}\nDo you want to continue ?"
                 ),
                 button=["Yes", "Cancel", "Delete them"],
                 defaultButton="Yes",
@@ -108,12 +128,9 @@ def skinAs(
                 cmds.warning("SkinAs operation cancelled")
                 return
             elif result == "Delete them":
-                cmds.delete(intermediate_shapes)
+                cmds.delete(intermediate_shapes.names)
                 return skinAs(objs, sourceNamespace, targetNamespace, useObjectNamespace)
 
-    source_skn = getSkinCluster(source)
-    if not source_skn:
-        raise ValueError("First object as no skinCluster attached")
     source_influences = source_skn.influences()
     target_influences = source_influences
 
@@ -134,13 +151,11 @@ def skinAs(
 
     skinClusters = nodes.YamList()
     kwargs = {
-        "skinMethod": source_skn.skinningMethod.value,
-        "maximumInfluences": source_skn.maxInfluences.value,
+        "skinningMethod": source_skn.skinningMethod.value,
+        "maxInfluences": source_skn.maxInfluences.value,
         "normalizeWeights": source_skn.normalizeWeights.value,
-        "obeyMaxInfluences": source_skn.maintainMaxInfluences.value,
+        "maintainMaxInfluences": source_skn.maintainMaxInfluences.value,
         "weightDistribution": source_skn.weightDistribution.value,
-        "includeHiddenSelections": True,
-        "toSelectedBones": True,
     }
     for target in free_targets:
         if useObjectNamespace:  # getting target influences namespace per target
@@ -167,6 +182,11 @@ def skinAs(
         target_skinCluster = nodes.SkinCluster.create(
             target, target_influences, name=f"{target.shortName}_SKN"
         )
+        for attr, value in kwargs.items():
+            target_skinCluster.attr(attr).value = value
+
+        cmds.refresh()  # Somehow needed or maya give you a fatal error if component tags is enabled
+
         cmds.copySkinWeights(
             ss=source_skn.name,
             ds=target_skinCluster.name,
