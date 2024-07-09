@@ -1,0 +1,5 @@
+[tool.black]
+line-length = 100
+preview = true
+pyi = false
+target-version = ["py37", "py39"]

@@ -579,7 +579,7 @@ class Attribute(nodes.Yam):
     @property
     def hashCode(self):
         if self._hashCode is None:
-            self._hashCode = om.MObjecHandle(self.MPlug.attribute()).hashCode()
+            self._hashCode = om.MObjectHandle(self.MPlug.attribute()).hashCode()
         return self._hashCode
 
     def children(self):

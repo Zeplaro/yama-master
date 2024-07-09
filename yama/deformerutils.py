@@ -586,3 +586,6 @@ def localizeSkinClusterInfluence(skinCluster, influence):
 
     # Connecting the result to the influence
     worldInverse_diff_mult.matrixSum.connectTo(bindPreMatrix_attr, force=True)
+
+
+# TODO : skinAs multi to one
